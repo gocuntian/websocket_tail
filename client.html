@@ -1,0 +1,105 @@
+
+<meta charset="utf-8" />    
+<title>WebSocket Test</title>    
+<head>
+  <title>webtail.js</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <script src="http://static.chelun.com/js/jquery-1.11.1.min.js"></script>
+  <style>
+    body
+      { color: #1a2c37;
+        font-family: 'Helvetica', sans-serif; font-size: 86%;
+        padding: 2em; }
+    #info
+      { font-size: 120%;
+        font-weight: bold; }
+    #tail
+      { border: 1px solid #ccc;
+        height: 300px;
+        padding: 0.5em;
+        overflow: hidden;
+        position: relative;
+        overflow-y: scroll; }
+  </style>
+<script language="javascript"type="text/javascript">    
+    var lines = 0;
+    var wsUri ="ws://127.0.0.1:9502";   
+    var output;
+    var websocket;
+       
+    function init() {   
+        output = document.getElementById("output");   
+        //console.log(output);  
+        testWebSocket();   
+    }    
+    
+    function testWebSocket() {   
+        websocket = new WebSocket(wsUri);   
+        websocket.onopen = function(evt) {   
+            onOpen(evt)   
+        };   
+        websocket.onclose = function(evt) {   
+            onClose(evt)   
+        };   
+        websocket.onmessage = function(evt) {   
+            onMessage(evt)   
+        };   
+        websocket.onerror = function(evt) {   
+            onError(evt)   
+        };   
+    }    
+    
+    function onOpen(evt) {   
+        var data = {};
+        data["cmd"] = 2;
+        data["domain"] = "xiou.cntv.cn";//根据域名找到Log路径，防止跳转到别的目录去了。
+        data["filename"] = "jack.txt";
+        $('#info').html("CONNECTED");   
+        var jsonString = JSON.stringify(data);
+        console.log(jsonString);
+        //doSend("WebSocket rocks");   
+        doSend(jsonString);   
+    }    
+    
+    function onClose(evt) {   
+        $('#info').html("DISCONNECTED");   
+    }    
+    
+    function onMessage(evt) {   
+        $('#tail').html( $('#tail').html() + evt.data );
+        lines++
+        $('#tail').scrollTop(lines*100)
+    }    
+    
+    function onError(evt) {   
+        $('#tail').html('<span style="color: red;">ERROR:</span> '+ evt.data);
+    }    
+    
+    function doSend(message) {   
+        $('#info').html("SENT: " + message);
+        websocket.send(message);   
+    }
+
+    function watch(filename)
+    {
+        var data = {};
+        data["cmd"] = 2;
+        data["domain"] = "xiou.cntv.cn";//根据域名找到Log路径，防止跳转到别的目录去了。
+        data["filename"] = filename;
+        $('#info').html("CONNECTED");
+        var jsonString = JSON.stringify(data);
+        console.log(jsonString);
+        doSend(jsonString);
+    }
+    
+    window.addEventListener("load", init, false);    
+    </script>
+</head>
+    <body>
+    <input type="text" id="filename" value="" />
+    <button onclick="watch($('#filename').val());">监听此文件</button>
+    <pre id="info"></pre>
+    <pre id="tail"></pre>
+    </body>
+</html>
+
