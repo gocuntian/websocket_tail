@@ -77,6 +77,16 @@ $server->on('Message', function (swoole_websocket_server $server, $frame)
     G::$files[$filename]['users'][] = $frame->fd;
 });
 
+$server->on('close', function ($serv, $fd, $threadId) {
+    if (G::$users[$fd]['watch_file'])
+    {
+        $file = G::$users[$fd]['watch_file'];
+        $k = array_search($fd, G::$files[$file]['users']);
+        unset(G::$files[$file]['users'][$k]);
+        unset(G::$users[$fd]);
+    }
+});
+
 $server->start();
 
 
