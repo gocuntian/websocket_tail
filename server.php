@@ -9,39 +9,30 @@ class G
 
 $server = new swoole_websocket_server("0.0.0.0", 9502, SWOOLE_BASE);
 
-$server->on('WorkerStart', function($server, $worker_id) {
+$server->on('WorkerStart', function(swoole_websocket_server $server, $worker_id) {
     G::$inotify = inotify_init();
     swoole_event_add(G::$inotify, function ($ifd) use ($server) {
         $events = inotify_read(G::$inotify);
-        if ($events)
+        if (!$events)
         {
-            foreach ($events as $event)
+            return;
+        }
+
+        foreach ($events as $event)
+        {
+            $filename = G::$watchList[$event['wd']];
+            $line = fgets(G::$files[$filename]['fp']);
+            if (!$line)
             {
-                $filename = G::$watchList[$event['wd']];
-                $line = fgets(G::$files[$filename]['fp']);
-                if ($line)
-                {
-                    foreach (G::$files[$filename]['users'] as $fd)
-                    {
-                        $server->push($fd, $line);
-                    }
-                }
-                else
-                {
-                    echo "EOF\n";
-                }
+                echo "fgets failed\n";
+            }
+            //遍历监听此文件的所有用户，进行广播
+            foreach (G::$files[$filename]['users'] as $fd)
+            {
+                $server->push($fd, $line);
             }
         }
     });
-});
-
-$server->set(array(
-    'log_file' => '/tmp/jack.txt'
-));
-
-$server->on('Open', function ($server, $req)
-{
-    echo "connection open: " . $req->fd;
 });
 
 $server->on('Message', function (swoole_websocket_server $server, $frame)
@@ -57,11 +48,6 @@ $server->on('Message', function (swoole_websocket_server $server, $frame)
         return;
     }
 
-    //用户监听的文件
-    G::$users[$frame->fd]['watch_file'] = $filename;
-    //文件被哪些人监听了
-    G::$files[$filename]['users'][] = $frame->fd;
-
     //还没有创建inotify句柄
     if (empty(G::$files[$filename]['inotify_fd']))
     {
@@ -75,22 +61,20 @@ $server->on('Message', function (swoole_websocket_server $server, $frame)
         G::$watchList[$wd] = $filename;
         G::$files[$filename]['inotify_fd'] = $wd;
         G::$files[$filename]['fp'] = $fp;
-
-        //清理掉其他文件的监听
-        foreach(G::$files as $f => $v)
-        {
-            if ($f != $filename)
-            {
-                $k = array_search($frame->fd, G::$files[$f]['users']);
-                unset(G::$files[$f]['users'][$k]);
-            }
-        }
     }
-});
 
-$server->on('Close', function ($server, $fd)
-{
-    echo "connection close: " . $fd;
+    //清理掉其他文件的监听
+    if (!empty(G::$users[$frame->fd]['watch_file']))
+    {
+        $oldfile = G::$users[$frame->fd]['watch_file'];
+        $k = array_search($frame->fd, G::$files[$oldfile]['users']);
+        unset(G::$files[$oldfile]['users'][$k]);
+    }
+
+    //用户监听的文件
+    G::$users[$frame->fd]['watch_file'] = $filename;
+    //文件被哪些人监听了
+    G::$files[$filename]['users'][] = $frame->fd;
 });
 
 $server->start();
